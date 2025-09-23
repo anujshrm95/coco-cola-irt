@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Companion - AI for BI</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        @keyframes pulse {
+            0%, 60%, 100% { transform: scale(1); opacity: 1; }
+            30% { transform: scale(1.4); opacity: 0.7; }
+        }
+        
+        .chat-history-item:hover {
+            background: linear-gradient(135deg, #f8fafc, #f1f5f9) !important;
+            transform: translateY(-1px);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+            border-color: #cbd5e1 !important;
+        }
+        
+        .history-content::-webkit-scrollbar,
+        #chatContainer::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .history-content::-webkit-scrollbar-track,
+        #chatContainer::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 3px;
+        }
+        
+        .history-content::-webkit-scrollbar-thumb,
+        #chatContainer::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        
+        .history-content::-webkit-scrollbar-thumb:hover,
+        #chatContainer::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        #chatInput:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        #sendButton:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        #history-banner:hover,
+        #guidelines-banner:hover {
+            background: linear-gradient(180deg, #5a4ba2 0%, #5670ea 100%);
+            transform: scale(1.02);
+        }
+        
+        #close-history:hover,
+        #close-guidelines:hover {
+            background: rgba(255,255,255,0.3);
+            transform: scale(1.05);
+        }
+
+        /* Download button styles */
+        .download-btn {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+        }
+
+        .download-btn:hover {
+            background: #059669;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(16, 185, 129, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div style="display: flex; height: 100%; font-family: Arial, sans-serif; background: #f5f5f5; border-radius: 8px; overflow: hidden; position: relative;">
+        <!-- Left History Banner (Collapsed by default) -->
+        <button id="history-banner" 
+                style="width: 40px; background: linear-gradient(180deg,#0abaf9 0%, #2c69d1 100%); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s ease; box-shadow: 2px 0 8px rgba(0,0,0,0.1); z-index: 10; border: none; outline: none; padding: 0; margin: 0;">
+            <div style="color: white; font-weight: 600; font-size: 14px; writing-mode: vertical-rl; text-orientation: mixed; letter-spacing: 1.5px; user-select: none; transform: rotate(180deg);">
+                HISTORY ^
+            </div>
+        </button>                    
+        
+        <!-- Left Side Panel - Chat History (Collapsible) -->
+        <div id="historyPanel" style="width: 0px; background: transparent; border-right: 1px solid #e1e5e9; display: flex; flex-direction: column; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; opacity: 0;">
+            <!-- History Header -->
+            <div style="background: linear-gradient(135deg, #0abaf9 0%, #2c69d1 100%); padding: 18px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1); height: 40px; box-sizing: border-box;">
+                <div class="panel-title" style="color: white; font-weight: 500;font-weight: 600; font-size: 15px; letter-spacing: 2px;">HISTORY</div>
+                <button id="close-history" style="background: rgba(255,255,255,0.2); border: none; color: white; cursor: pointer; padding: 8px; border-radius: 6px; transition: all 0.2s ease; backdrop-filter: blur(10px);">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- User Info -->
+            <div class="user-info" style="padding: 20px; border-bottom: 1px solid #f0f2f5; background: linear-gradient(to right, #fafbfc, #ffffff);">
+                <div style="display: flex; align-items: center; gap: 12px;"> 
+                    <div>
+                        <div style="font-size: 13px; color: #9ca3af; margin-bottom: 5px;margin-left:6px;">User ID</div>
+                        <div id="user-display" style="font-weight: 600; font-size: 13px; color: #2c3e50; border: 1px solid #d1d5db; padding: 6px 10px; border-radius: 6px; display: inline-block;">
+                            WebUser
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Chat History List -->
+            <div class="history-content" style="flex: 1; overflow-y: auto; padding: 16px 12px;">
+                <div style="font-size: 13px; color: #64748b; margin-bottom: 16px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">Recent Conversations</div>                            
+            </div>
+        </div>
+
+        <!-- Main Chat Container -->
+        <div style="flex: 1; display: flex; flex-direction: column; position: relative;background: #f8fafc">
+            
+           <!-- Header Container with Logo and Title -->
+            <div style="padding: 2px 2px 2px 2px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid rgba(226, 232, 240, 0.3);">
+                <!-- Title and Description -->
+                <div style="flex: 1;">
+                    <h1 style="margin: 5px 0 4px 20px; font-size: 16px; font-weight: 600; color: #1a202c; align-items: center;letter-spacing: -0.5px;background:transparent;letter-spacing: 1px">Data Companion</h1>
+                </div>
+            </div>
+            
+            <!-- Chat Messages Container -->
+            <div id="chatContainer" style="flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 8px; background: linear-gradient(to bottom, #f8fafc, #ffffff);">     
+                <!-- Messages will be added here dynamically -->
+            </div>
+            
+            <!-- Input Area -->
+            <div style="padding: 15px; border-top: 1px solid #e2e8f0; background: linear-gradient(to top, #f8fafc, #ffffff);">
+            <div style="display: flex; gap: 12px; align-items: flex-end; max-width: 800px; margin: 0 auto;">
+                <input id="chatInput" 
+                type="text"
+                placeholder="Type your message..."
+                style="flex: 1; 
+                       height: 40px; 
+                       padding: 12px 18px; 
+                       font-size: 14px; 
+                       border: 1px solid #d1d5db; 
+                       border-radius: 22px; 
+                       line-height: 20px; 
+                       box-sizing: border-box;
+                       background: #ffffff;
+                       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                       transition: all 0.2s ease;
+                       box-shadow: 0 2px 4px rgba(0,0,0,0.04);" />
+                    <button id="sendButton" 
+                        style="padding: 12px 20px; background:#2c69d1; color: white; border: none; border-radius: 22px; cursor: pointer; font-size: 14px; min-width: 70px; height: 40px; font-weight: 500; transition: all 0.2s ease; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);">
+                        Send
+                    </button>
+                </div>
+                <div style="text-align: center; font-size: 12px; color: #6b7280; margin-top: 14px;margin-bottom:0">
+                <b>Disclaimer:</b> Data Companion generates insights from BI data. Results are indicative and should be verified before making business decisions.
+            </div>
+            </div>
+            </div>
+
+        <!-- Right Side Panel - Guidelines (Collapsible) -->
+        <div id="guidelinesPanel" style="width: 0px; background: #ffffff; border-left: 1px solid #e1e5e9; display: flex; flex-direction: column; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; opacity: 0;">
+            <!-- Guidelines Header -->
+            <div style="background: linear-gradient(135deg, #0abaf9 0%, #2c69d1 100%); padding: 18px 16px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1); height: 40px; box-sizing: border-box;">
+                <div style="color: white; font-weight: 600; font-size: 15px; letter-spacing: 1.5px;">GUIDELINES</div>
+                <button id="close-guidelines" style="background: rgba(255,255,255,0.2); border: none; color: white; cursor: pointer; padding: 8px; border-radius: 6px; transition: all 0.2s ease; backdrop-filter: blur(10px);">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Guidelines Content -->
+            <div style="flex: 1; overflow-y: auto; padding: 16px; font-size: 12px; line-height: 1.6; background: linear-gradient(to bottom, #f8fafc, #ffffff);">
+
+                <!-- Data Companion Guidelines Section -->
+                <div style="margin-bottom: 20px;">
+                    <div style="background: linear-gradient(135deg, #f1f5f9, #ffffff); padding: 12px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #667eea; box-shadow: 0 2px 4px rgba(0,0,0,0.04);">
+                        <div style="font-size: 11px; font-weight: 600; color: #2c3e50; margin-bottom: 4px;">✅ Keep Queries Concise</div>
+                        <div style="font-size: 10px; color: #64748b;">Short, structured queries for accuracy & speed</div>
+                    </div>
+
+                    <div style="background: linear-gradient(135deg, #f1f5f9, #ffffff); padding: 12px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #10b981; box-shadow: 0 2px 4px rgba(0,0,0,0.04);">
+                        <div style="font-size: 11px; font-weight: 600; color: #2c3e50; margin-bottom: 4px;">✅ Avoid Vague Terms Like 'Trend' or 'Compare'</div>
+                        <div style="font-size: 10px; color: #64748b;">Historic values, best-ever records for better insights</div>
+                    </div>
+
+                    <div style="background: linear-gradient(135deg, #f1f5f9, #ffffff); padding: 12px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #f59e0b; box-shadow: 0 2px 4px rgba(0,0,0,0.04);">
+                        <div style="font-size: 11px; font-weight: 600; color: #2c3e50; margin-bottom: 4px;">✅ Specify a Timeframe</div>
+                        <div style="font-size: 10px; color: #64748b;">Year, Month, or Quarter for precision instead of broad time-based queries</div>
+                    </div>
+
+                    <div style="background: linear-gradient(135deg, #f1f5f9, #ffffff); padding: 12px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #8b5cf6; box-shadow: 0 2px 4px rgba(0,0,0,0.04);">
+                        <div style="font-size: 11px; font-weight: 600; color: #2c3e50; margin-bottom: 4px;">✅ Specify Decimal Place</div>
+                        <div style="font-size: 10px; color: #64748b;">For values in specific decimals</div>
+                    </div>
+
+                    <div style="background: linear-gradient(135deg, #f1f5f9, #ffffff); padding: 12px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #ef4444; box-shadow: 0 2px 4px rgba(0,0,0,0.04);">
+                        <div style="font-size: 11px; font-weight: 600; color: #2c3e50; margin-bottom: 4px;">✅ Define Your Output</div>
+                        <div style="font-size: 10px; color: #64748b;">State totals, percentages, rankings, or breakdowns for refined analysis</div>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <h4 style="color: #2c3e50; margin: 0 0 10px 0; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                        <span style="color: #667eea;">🔧</span> Features
+                    </h4>
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                        <div style="display: flex; align-items: center; gap: 8px; padding: 8px; background: linear-gradient(135deg, #eff6ff, #f0f9ff); border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                            <div style="width: 6px; height: 6px; background: #667eea; border-radius: 50%;"></div>
+                            <span style="font-size: 10px; color: #1e40af; font-weight: 500;">PDF Export</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px; padding: 8px; background: linear-gradient(135deg, #ecfdf5, #f0fdf4); border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                            <div style="width: 6px; height: 6px; background: #10b981; border-radius: 50%;"></div>
+                            <span style="font-size: 10px; color: #065f46; font-weight: 500;">Follow-up questions</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px; padding: 8px; background: linear-gradient(135deg, #fefce8, #fffbeb); border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                            <div style="width: 6px; height: 6px; background: #f59e0b; border-radius: 50%;"></div>
+                            <span style="font-size: 10px; color: #92400e; font-weight: 500;">Real-time Analysis</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right Guidelines Banner (Collapsed by default) -->
+        <div id="guidelines-banner" style="width: 40px; background: linear-gradient(180deg, #0abaf9 0%, #2c69d1 100%); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s ease; box-shadow: -2px 0 8px rgba(0,0,0,0.1); z-index: 10;">
+            <div style="color: white; font-weight: 600; font-size: 14px; writing-mode: vertical-lr; text-orientation: mixed; letter-spacing: 2px; user-select: none;">^ GUIDELINES</div>
+        </div>
+    </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+// Configuration - Updated to use Flask endpoint with CORS support
+const config = {
+  apiEndpoint: "https://twelve-moose-pay.loca.lt/query", // Flask backend
+  method: "POST",
+  headers: { 
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    "Access-Control-Allow-Origin": "*"
+  },
+  // CORS configuration
+  mode: "cors", // Enable CORS
+  credentials: "same-origin" // or "include" if you need cookies/auth
+};
+
+// DOM elements
+const chatContainer = $('#chatContainer');
+const input = $('#chatInput');
+const button = $('#sendButton');
+const historyPanel = $('#historyPanel');
+const guidelinesPanel = $('#guidelinesPanel');
+const historyBanner = $('#history-banner');
+const guidelinesBanner = $('#guidelines-banner');
+const closeHistoryBtn = $('#close-history');
+const closeGuidelinesBtn = $('#close-guidelines');
+
+let messageCounter = 0;
+let isHistoryCollapsed = true;
+let isGuidelinesCollapsed = true;
+let isRequestActive = false; // Request state management
+let lastRequestTime = 0; // Throttling
+const MIN_REQUEST_INTERVAL = 1000; // Minimum 1 second between requests
+
+// -----------------------
+// Chat bubbles
+// -----------------------
+function addUserMessage(message) {
+  const userMsgHtml = `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:4px;">
+      <div style="max-width:80%;text-align:right;">
+        <div style="font-size:12px;color:#999;margin-bottom:2px;">You</div>
+        <div style="background:#D7F4FF;color:white;padding:12px 16px;
+                    border-radius:18px 18px 4px 18px;box-shadow:0 1px 2px rgba(0,0,0,0.1);">
+          <div style="font-size:14px;color:black">${escapeHtml(message)}</div>
+        </div>
+      </div>
+    </div>`;
+  chatContainer.append(userMsgHtml);
+  scrollToBottom();
+}
+
+function addBotMessage(htmlContent, messageId) {
+  const botMsgHtml = `
+    <div style="display:flex;justify-content:flex-start;margin-bottom:4px;">
+      <div style="max-width:85%;">
+        <div style="font-size:12px;color:#999;margin-bottom:2px;">Data Companion</div>
+        <div style="display:flex;align-items:flex-end;gap:8px;">
+          <div style="background:#f8fafc;padding:12px 16px;
+                      border-radius:18px 18px 18px 4px;box-shadow:0 1px 2px rgba(0,0,0,0.1);flex:1;">
+            <div id="response-${messageId}" style="font-size:14px;color:black;">
+              ${htmlContent}
+            </div>
+          </div>
+          <button onclick="downloadResponse(${messageId})" class="download-btn" title="Download as PDF"
+            style="background: #667eea; border: none; cursor: pointer; padding: 6px; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0,0,0,0.2); transition: background 0.2s; flex-shrink: 0;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>`;
+  chatContainer.append(botMsgHtml);
+  scrollToBottom();
+}
+
+function addLoadingMessage() {
+  const loadingId = `loading-${Date.now()}`;
+  const loadingHtml = `
+    <div id="${loadingId}" style="display:flex;flex-direction:column;align-items:flex-start;margin-bottom:4px;">
+      <div style="font-size:12px;color:#999;margin-left:4px;margin-bottom:2px;">Data Companion</div>
+      <div style="max-width:70%;background:#e3f2fd;padding:12px 16px;
+                  border-radius:18px 18px 18px 4px;box-shadow:0 1px 2px rgba(0,0,0,0.1);">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="display:flex;gap:4px;">
+            <div style="width:8px;height:8px;background:#667eea;border-radius:50%;animation:pulse 1.5s ease-in-out infinite;"></div>
+            <div style="width:8px;height:8px;background:#667eea;border-radius:50%;animation:pulse 1.5s ease-in-out 0.1s infinite;"></div>
+            <div style="width:8px;height:8px;background:#667eea;border-radius:50%;animation:pulse 1.5s ease-in-out 0.2s infinite;"></div>
+          </div>
+          <span style="font-size:14px;color:#666;">Analyzing...</span>
+        </div>
+      </div>
+    </div>`;
+  chatContainer.append(loadingHtml);
+  scrollToBottom();
+  return loadingId;
+}
+
+function removeLoadingMessage(loadingId) {
+  $(`#${loadingId}`).remove();
+}
+
+function scrollToBottom() {
+  chatContainer.scrollTop(chatContainer[0].scrollHeight);
+}
+
+function escapeHtml(text) {
+  return text.replace(/[&<>"']/g, m => (
+    { "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[m]
+  ));
+}
+
+// -----------------------
+// Send message with proper request state management
+// -----------------------
+async function sendMessage() {
+  console.log('sendMessage called, isRequestActive:', isRequestActive);
+  
+  if (isRequestActive) {
+    console.log('Request blocked - already active');
+    return;
+  }
+
+  const now = Date.now();
+  if (now - lastRequestTime < MIN_REQUEST_INTERVAL) {
+    console.log('Request throttled - too soon after last request');
+    return;
+  }
+
+  const message = input.val().trim();
+  if (!message) {
+    input.focus();
+    return;
+  }
+
+  isRequestActive = true;
+  lastRequestTime = now;
+  console.log('Request started, isRequestActive set to:', isRequestActive);
+
+  addUserMessage(message);
+  input.val('');
+  const loadingId = addLoadingMessage();
+  button.prop("disabled", true).text("...").css({
+      "cursor": "not-allowed",
+      "background": "#6c757d"
+  });
+  console.log('sendMessage -> start', { endpoint: config.apiEndpoint, message });
+
+  const maxRetries = 3;
+  const baseDelay = 1000;
+
+  async function attemptRequest(attempt = 1) {
+    try {
+      const res = await fetch(config.apiEndpoint, {
+        method: config.method || 'POST',
+        headers: { ...(config.headers || {}) },
+        body: JSON.stringify({ query: message }),
+        mode: config.mode || 'cors',
+        credentials: config.credentials || 'same-origin'
+      });
+
+      console.log('fetch finished', { ok: res.ok, status: res.status, statusText: res.statusText });
+      removeLoadingMessage(loadingId);
+
+      if (!res.ok) {
+        let txt = '';
+        try { txt = await res.text(); } catch (e) {}
+        addBotMessage(`Server error: ${res.status} ${res.statusText}${txt ? ' — ' + txt : ''}`, ++messageCounter);
+        return;
+      }
+
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        console.warn('response not JSON, falling back to text', parseErr);
+        const txt = await res.text();
+        data = { response: txt || null };
+      }
+
+      console.log('response data:', data);
+
+      const currentMessageId = ++messageCounter;
+      window[`query_${currentMessageId}`] = message;
+      window[`timestamp_${currentMessageId}`] = new Date().toISOString();
+
+      const summary = data.response || 'No response received';
+      addBotMessage(summary, currentMessageId);
+
+    } catch (err) {
+      console.error(`fetch error (Attempt ${attempt})`, err);
+      removeLoadingMessage(loadingId);
+
+      if (attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt - 1);
+        console.log(`Retrying in ${delay}ms... Attempt ${attempt + 1}/${maxRetries}`);
+        setTimeout(() => attemptRequest(attempt + 1), delay);
+        return;
+      }
+
+      let errorMessage = 'Network error: ';
+      if (err.name === 'TypeError' && err.message.includes('fetch')) {
+        errorMessage += 'Connection failed. This might be due to server overload from multiple requests or CORS issues.';
+      } else if (err.name === 'AbortError') {
+        errorMessage += 'Request timed out.';
+      } else {
+        errorMessage += (err.message || err);
+      }
+
+      addBotMessage(errorMessage, ++messageCounter);
+    } finally {
+      if (attempt === 1 || attempt >= maxRetries) {
+        console.log('Request finished, resetting isRequestActive');
+        button.prop("disabled", false).text("Send").css({
+            "cursor": "pointer",
+            "background": "#2c69d1"
+        });
+        isRequestActive = false;
+        input.focus();
+        console.log('isRequestActive reset to:', isRequestActive);
+      }
+    }
+  }
+
+  attemptRequest(); // first attempt
+}
+
+// -----------------------
+// PDF Download Function
+// -----------------------
+async function downloadResponse(messageId) {
+  const responseElement = document.getElementById(`response-${messageId}`);
+  if (!responseElement) {
+    alert("Response not found for download.");
+    return;
+  }
+
+  const originalQuery = window[`query_${messageId}`] || "N/A";
+  const timestamp = window[`timestamp_${messageId}`] || new Date().toISOString();
+  const formattedTimestamp = new Date(timestamp).toLocaleString();
+
+  // Clone the response with query + timestamp
+  const tempContainer = document.createElement("div");
+  tempContainer.style.cssText = `
+    position: fixed;
+    top: -9999px;
+    left: -9999px;
+    width: 1000px;
+    font-family: Arial, sans-serif;
+    color: #333;
+    line-height: 1.6;
+  `;
+  tempContainer.innerHTML = `
+    <div style="padding: 24px;">
+      <h1 style="color:#2c69d1; margin-bottom:4px;">Data Companion Report</h1>
+      <p style="color:#666; margin:0 0 16px 0; font-size:12px;">Generated on ${formattedTimestamp}</p>
+
+      <h3 style="margin:12px 0 4px 0;">Original Query:</h3>
+      <div style="background:#f8fafc; padding:10px; border-left:4px solid #2c69d1; border-radius:4px;">
+        ${originalQuery}
+      </div>
+
+      <h3 style="margin:20px 0 8px 0;">Response:</h3>
+      ${responseElement.innerHTML}
+    </div>
+  `;
+  document.body.appendChild(tempContainer);
+
+  // Render to canvas
+  const fullCanvas = await html2canvas(tempContainer, {
+    scale: 2,
+    useCORS: true,
+    allowTaint: true,
+    scrollX: 0,
+    scrollY: 0
+  });
+  document.body.removeChild(tempContainer);
+
+  // PDF setup
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF("p", "pt", "a4");
+  const pdfWidth = pdf.internal.pageSize.getWidth();
+  const pdfHeight = pdf.internal.pageSize.getHeight();
+  const margin = 20;
+
+  const imgWidth = pdfWidth - 2 * margin;
+  const pageHeightAvailable = pdfHeight - 2 * margin;
+  const pageHeightPx = (pageHeightAvailable * fullCanvas.width) / imgWidth;
+
+  const ctxWidth = fullCanvas.width;
+  const ctxHeight = fullCanvas.height;
+  const pageCount = Math.ceil(ctxHeight / pageHeightPx);
+
+  for (let page = 0; page < pageCount; page++) {
+    if (page > 0) pdf.addPage();
+
+    const canvasSlice = document.createElement("canvas");
+    canvasSlice.width = ctxWidth;
+    canvasSlice.height = Math.min(pageHeightPx, ctxHeight - page * pageHeightPx);
+
+    const ctx = canvasSlice.getContext("2d");
+    ctx.drawImage(
+      fullCanvas,
+      0,
+      page * pageHeightPx,
+      ctxWidth,
+      canvasSlice.height,
+      0,
+      0,
+      ctxWidth,
+      canvasSlice.height
+    );
+
+    const imgData = canvasSlice.toDataURL("image/png", 1.0);
+    const imgHeight = (canvasSlice.height * imgWidth) / ctxWidth;
+    pdf.addImage(imgData, "PNG", margin, margin, imgWidth, imgHeight);
+  }
+
+  pdf.save(`Data_Companion_Report_${messageId}.pdf`);
+}
+
+
+// -----------------------
+// Panel Toggles
+// -----------------------
+function toggleHistoryPanel() {
+  isHistoryCollapsed = !isHistoryCollapsed;
+  historyPanel.css(isHistoryCollapsed ? { width: "0px", opacity: "0" }
+                                      : { width: "280px", opacity: "1" });
+  historyBanner.toggle(isHistoryCollapsed);
+}
+
+function toggleGuidelinesPanel() {
+  isGuidelinesCollapsed = !isGuidelinesCollapsed;
+  guidelinesPanel.css(isGuidelinesCollapsed ? { width: "0px", opacity: "0" }
+                                            : { width: "280px", opacity: "1" });
+  guidelinesBanner.toggle(isGuidelinesCollapsed);
+}
+
+// -----------------------
+// Initialization
+// -----------------------
+$(document).ready(function() {
+  // Panel toggles
+  historyBanner.on("click", toggleHistoryPanel);
+  guidelinesBanner.on("click", toggleGuidelinesPanel);
+  closeHistoryBtn.on("click", toggleHistoryPanel);
+  closeGuidelinesBtn.on("click", toggleGuidelinesPanel);
+
+  // Message sending - Use .off() to prevent multiple bindings
+  button.off("click").on("click", function(e) {
+    e.preventDefault();
+    sendMessage();
+  });
+  
+  input.off("keydown").on("keydown", function(e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+  
+  // Focus input on load
+  input.focus();
+  
+  // Debug: Log when DOM is ready
+  console.log('DOM ready, isRequestActive initialized to:', isRequestActive);
+});
+</script>
+</body>
+</html>
